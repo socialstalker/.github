@@ -1,77 +1,57 @@
-# SocialStalker
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="assets/banner-dark.svg">
+  <img alt="socialstalker by gitnasr" src="assets/banner-light.svg" width="100%">
+</picture>
 
-A social media archiving toolkit: a browser extension that downloads and unlocks
-media on Instagram and Facebook, a backend that records what it did, and a
-dashboard for looking at those records.
+**Save what you see on Instagram, Facebook and X.** Full-size profile pictures, stories, posts, reels and whole-profile archives, one click from the page you are already on.
 
-Three repositories, one system.
+<p>
+  <a href="https://chromewebstore.google.com/detail/socialstalker-social-medi/hbpaegjojojclojokkjfkbmlenollnpl"><b>Install from Chrome Web Store</b></a> ·
+  <a href="https://ss.gitnasr.com">Website</a> ·
+  <a href="https://github.com/socialstalker/releases/releases">Releases</a> ·
+  <a href="https://github.com/socialstalker/releases/blob/main/CHANGELOG.md">Changelog</a> ·
+  <a href="https://ss.gitnasr.com/support">Support</a>
+</p>
 
-| Repository | Stack | Role |
-|---|---|---|
-| [extension](https://github.com/socialstalker/extension) | TypeScript, React, Vite, Manifest V3 | Runs in the user's browser. Full-size profile pictures, story/post/reel/feed downloads, whole-profile archiving, seen-state blocking. |
-| [backend](https://github.com/socialstalker/backend) | NestJS, Drizzle, Postgres, BullMQ, Redis | Ingest API for the extension, admin API for the dashboard, and a worker that normalises events and mirrors media. |
-| [dashboard](https://github.com/socialstalker/dashboard) | Next.js 16, React 19, Tailwind | Read-only admin UI over the backend's `/admin` routes. |
+## What it does
 
-## How a request flows
+| Platform | You get |
+| --- | --- |
+| **Instagram** | Full profile picture, posts, carousels, reels, stories, highlights, and a zip of a whole profile |
+| **Facebook** | Full profile picture, a zip of uploaded photos, stories |
+| **X / Twitter** | The highest-quality video on any post, a zip of an account's own photos and videos |
+
+It also stops sending "seen" receipts when you open a story. Manifest V3, no account, no sign-up.
+
+## How it is built
 
 ```
-                    ┌───────────────────────────────┐
-   user's browser   │  extension                    │
-                    │  content scripts + MV3 worker │
-                    └───────────────┬───────────────┘
-                                    │ POST /v1/installs/enroll
-                                    │ POST /v1/events
-                                    │ POST /v1/heartbeat
-                                    ▼
-                    ┌───────────────────────────────┐
-                    │  backend — ingest API         │
-                    │  install token guard          │
-                    └───────┬───────────────┬───────┘
-                            │               │
-                   Postgres │               │ Redis (BullMQ)
-                 partitioned│               │
-                            ▼               ▼
-                    ┌───────────────────────────────┐
-                    │  backend — worker             │
-                    │  normalise, mirror media,     │
-                    │  build archives, geoip        │
-                    └───────────────┬───────────────┘
-                                    │
-                                    ▼
-                            object storage (S3)
-
-
-                    ┌───────────────────────────────┐
-   an operator ────▶│  Authentik forward-auth proxy │
-                    └───────────────┬───────────────┘
-                                    │ identity headers
-                                    ▼
-                    ┌───────────────────────────────┐
-                    │  dashboard (server-side only) │
-                    └───────────────┬───────────────┘
-                                    │ + x-socialstalker-proxy
-                                    ▼
-                    ┌───────────────────────────────┐
-                    │  backend — /admin             │
-                    │  audited against the operator │
-                    └───────────────────────────────┘
+ your browser                        what we run
+ ┌──────────────────┐   events   ┌──────────────┐   ┌─────────────────┐
+ │ extension (MV3)  │ ─────────▶ │ ingest API   │ ─▶│ worker + storage│
+ └──────────────────┘            └──────────────┘   └────────┬────────┘
+                                                             │ read-only
+                                                    ┌────────▼────────┐
+                                                    │ admin dashboard │
+                                                    └─────────────────┘
 ```
 
-Two things about that lower path are deliberate. The browser never reaches the
-admin API — every dashboard request originates server-side, so no credential
-capable of reaching `/admin` is ever handed to a client. And the operator's
-identity is forwarded rather than replaced, so the audit log names the person who
-clicked instead of naming the dashboard.
+| Part | Stack | Where |
+| --- | --- | --- |
+| `extension` | TypeScript, React, Vite, Manifest V3 | Private source, signed builds in [releases](https://github.com/socialstalker/releases) |
+| `backend` | NestJS, Postgres, Redis, BullMQ | Private |
+| `dashboard` | Next.js, React, Tailwind | Private |
+| `landing` | Next.js, Tailwind | Private, live at [ss.gitnasr.com](https://ss.gitnasr.com) |
+| [`releases`](https://github.com/socialstalker/releases) | `.crx` and `.zip` builds, changelog | Public |
 
-## Operations
+Every release is typechecked, tested, signed and published by CI. Nothing is uploaded by hand.
 
-Deployed on **Dokploy**: the backend image runs twice, once as the API and once
-as the worker, with different start commands. Postgres and Redis are
-Dokploy-managed resources in the same project.
+## Install without the store
 
-Secrets live in **Infisical** and are fetched at boot by a machine identity —
-nothing reads a `.env` in production. Dokploy's own env tabs carry only the
-per-application operational keys and the identity coordinates.
+Grab the latest `.crx` or `.zip` from [releases](https://github.com/socialstalker/releases/releases) and follow the steps in its [README](https://github.com/socialstalker/releases#how-to-install).
 
-Errors from the extension go to **Sentry**, with platform credentials scrubbed by
-an allowlist before anything leaves the browser.
+## Contact
+
+Bugs and questions: [dev@gitnasr.com](mailto:dev@gitnasr.com) or the [support page](https://ss.gitnasr.com/support).
+
+Made by [gitnasr](https://gitnasr.com). Explained by building.
